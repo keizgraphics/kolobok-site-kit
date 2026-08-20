@@ -37,9 +37,14 @@ fetch the assets and will not finish this task.
 
 2. Write three files: `index.html`, `styles.css`, `hero.js`. No frameworks, no build step,
    no npm. All motion runs in one requestAnimationFrame loop.
-3. Serve locally over a server that supports HTTP Range (otherwise the video cannot seek).
-   Python's `http.server` does NOT support Range — write a tiny Range-capable server,
-   or use any static server that does.
+3. Serve locally over a server that is BOTH Range-capable and threaded.
+   Python's `http.server` supports neither out of the box:
+   - no Range → the video cannot seek;
+   - `HTTPServer` is single-threaded → with HTTP/1.1 keep-alive the browser holds the
+     connection open, the server blocks, and `hero.js` is logged as 200 but its body
+     never arrives. The page then shows no letters and no errors at all. Use
+     `ThreadingHTTPServer`, not `HTTPServer`. This is the single most common way
+     this build appears broken while nothing is actually wrong.
 4. Verify yourself against §12 before reporting done.
 
 All Russian copy below is final. Copy it verbatim, character for character.
@@ -75,7 +80,7 @@ Repo    https://github.com/keizgraphics/kolobok-site-kit
 CDN     https://cdn.jsdelivr.net/gh/keizgraphics/kolobok-site-kit@main
 Mirror  https://raw.githubusercontent.com/keizgraphics/kolobok-site-kit/main
 
-`manifest.txt` in the repo root lists all 27 paths.
+`manifest.txt` in the repo root lists all 27 paths — 26 assets plus the font.
 Save each file to the same relative path shown below.
 
     assets/sky.jpg                      2880×1608  sky background, clean centre
@@ -106,6 +111,30 @@ Save each file to the same relative path shown below.
     assets/blocks/finale-video.mp4      1928×1076  10 s, the bun rolls away over the horizon
     fonts/coolvetica-rg.ttf                        the only typeface on the site
 
+Which file goes where — the spec never leaves this to guessing:
+
+    sky.jpg                 background of .sky (fixed, whole page)
+    island.webp             img.island inside .island-group
+    vdali.webp              img.vdali        inside .island-group
+    otsborov.webp           img.otsborov     inside .island-group
+    cloud.webp              both img.cloud in the hero AND both img.about__cloud
+    letters3/ltr-*.webp     the seven img inside .word__letter divs
+    preloader-ball.webp     img.pre__ball in the preloader
+    spider.webp             img.about__hero--spider
+    grandparents.webp       img.about__hero--grandparents
+    oleg.webp               img.hero-sec__mongol
+    film-strip.webp         img.bo__strip
+    hl-boxoffice.webp       img.bo__headline
+    ico_reel.webp           icon of box-office fact 1 (2 171 copies)
+    ico_seat.webp           icon of fact 2 (11 people)
+    ico_ticket.webp         icon of fact 3 (4 tickets)
+    cinema.webp             img.cinema-hall
+    mask-on.webp            img.rate__m--on   (ten cells, slide 3)
+    mask-off.webp           img.rate__m--off
+    finale-video.mp4        video.finale__bg
+    finale-poster.jpg       its poster attribute
+    coolvetica-rg.ttf       the @font-face source
+
 File names must stay ASCII. Cyrillic in a path turns into percent-encoding and behaves
 differently across hosts — that is why the letters are named ltr-k1 … ltr-k2.
 
@@ -117,6 +146,14 @@ differently across hosts — that is why the letters are named ltr-k1 … ltr-k2
 body { font-family: 'Coolvetica', 'Helvetica Neue', Arial, sans-serif; }
 
 One typeface across the whole page. Never introduce a second one.
+
+Document head:
+    <!doctype html> / <html lang="ru">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>КОЛОБОК — вдали от сборов</title>
+    Preload the four heaviest first-screen files: preloader-ball.webp, sky.jpg,
+    island.webp, cloud.webp.
 
 ═══════════════════════════════════════════════════════════════════════════
 5. TOKENS
@@ -137,6 +174,9 @@ N is the pixel value measured on a 1440-wide artboard. Do not convert to px or r
 6. DOM TREE
 ═══════════════════════════════════════════════════════════════════════════
 .pre#pre                       z 200  preloader curtain
+  .pre__glow / img.pre__ball
+  .pre__rail > .pre__num#preNum   text node with the number + span with "%"
+                                  JS writes --p on .pre (the curtain), not on the number
 .sky                           z 0    position: fixed, inset: 0 — sky under everything
 header.topbar                  z 100  fixed; .menu left, a.trailer right
 main
@@ -147,19 +187,57 @@ main
       img.cloud.cloud--left
       img.cloud.cloud--right
   section.about#about          z 1    min-height 100vh, flex centre
+    img.about__cloud.about__cloud--left
+    img.about__hero.about__hero--spider
+    img.about__cloud.about__cloud--right
+    img.about__hero.about__hero--grandparents
+    .about__text
+      p.section-label / p.about__line ×2 / p.about__line--small
+      .tags > span.tag.tag--yellow + span.tag.tag--white
   section.reviews#reviews      z 1    padding 22vh 0 30vh
+    .reviews__intro
+      p.section-label / h2.reviews__title / p.reviews__lead
+    .reviews__list
+      article.review ×4  (the first also .review--flag)
+        span.review__badge            (first card only)
+        .review__head
+          span.review__avatar         inline background gradient, one letter inside
+          span.review__name
+        p.review__body
+        .review__likes > svg + text node with the number
   section.boxoffice#numbers    z 1    min-height 190vh
+    img.bo__strip#boStrip
+    img.bo__headline
+    .bofact.bofact--1 … --3
+      span.bofact__icon > img
+      b[data-count]                   the count-up target
+      i                               the caption
   div.cinema-wrap#cinemaWrap   z 12   height 300vh
     .cinema-pin                       position: sticky, top 0, height 100vh, overflow hidden
       .cinema-screen#cinemaScreen     the hole in the hall image; JS sets left/top/w/h
         .cinema-track#cinemaTrack     three .cinslide, flex row
       img.cinema-hall#cinemaHall      object-fit cover, transform-origin 50% 32%
   section.hero-sec#hero-about  z 1    min-height 130vh
+    .hero-sec__inner
+      img.hero-sec__mongol.reveal
+      .hero-sec__copy
+        p.section-label.reveal
+        h2.hero-sec__title > span.line > i        (two lines, each in its own .line)
+        p.hero-sec__sub.reveal
+        .review.review--cloud                     same markup as a review card
   section.finale#finale        z 11   height 100vh
     .finale__pin                      position: relative, height 100vh, overflow hidden
-      .finale__sky / video.finale__bg#finaleVideo / .finale__copy
+      .finale__sky
+      video.finale__bg#finaleVideo
+      .finale__copy
+        p.finale__lead / b.finale__zero / p.finale__note
 .bottom-blur                   z 90   fixed bottom strip
-.release / a.booking / .budget#budget   z 100  fixed
+.release                       z 100  fixed — svg.release__icon + text
+a.booking[href="#booking"]     z 100  fixed — span.booking__title + span.booking__note
+.budget#budget                 z 100  fixed — span.budget__label + span.budget__value#budgetValue
+                                      JS fills the value: .odo > .odo__cell > .odo__reel
+                                      (ten digit spans each) + a trailing span.rub with "₽"
+a.trailer[href="#trailer"]     inside .topbar
 
 Order matters: .sky sits under the content, the fixed UI sits above every section.
 
@@ -184,6 +262,24 @@ tag          border-radius calc(12 * var(--u)) — a rounded rectangle, NOT a pi
 bottom blur  height calc(230 * var(--u)); backdrop-filter blur(calc(22 * var(--u)));
              mask-image linear-gradient(to top, #000 0%, transparent 78%).
              Legibility comes from blur only — not one dark pixel anywhere.
+icons        Four inline SVGs, all viewBox="0 0 24 24". Use these paths verbatim —
+             do not draw your own, they will not match.
+
+             play triangle in .trailer (16u, fill #fff):
+               M8 5.5v13l11-6.5z
+
+             ticket in .release (22u, fill #fff, stroke #79C0F2, stroke-width 1.6):
+               M3 8.5A2.5 2.5 0 0 0 5.5 6H10v12H5.5A2.5 2.5 0 0 0 3 15.5v-7z
+               M21 8.5A2.5 2.5 0 0 1 18.5 6H14v12h4.5a2.5 2.5 0 0 1 2.5-2.5v-7z
+               M12 5v2m0 3v2m0 3v2m0 3v2          (this third path takes stroke-linecap="round")
+
+             thumbs-up in .review__likes (19u, fill currentColor):
+               M2 10h4v11H2zM8 21V9.6L13.4 3l1.2.9c.3.3.5.7.5 1.2v.3L14.2 10H21a2 2 0 0 1 2 2l-2.6 7.6c-.3.8-1 1.4-1.9 1.4z
+
+             star in the IMDb slide (ten of them, one filled #ffd000, the rest
+             rgba(255,255,255,.28); size clamp(22px, 2.1vw, 34px)):
+               M12 2.6l2.9 5.9 6.5.95-4.7 4.6 1.1 6.5-5.8-3.05-5.8 3.05 1.1-6.5-4.7-4.6 6.5-.95z
+
 cursor       @media (pointer: fine) { body, a, button { cursor: url('data:image/svg+xml;utf8,
              <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30">
              <path d="M5 3 L26 13.5 L16.6 15.8 L21.3 25.2 L16.5 27.4 L12 17.8 L5.5 23 Z"
@@ -209,7 +305,9 @@ cursor       @media (pointer: fine) { body, a, button { cursor: url('data:image/
          Anchors: #about, #reviews, #numbers, #hero-about
 .trailer glass; padding calc(10 * var(--u)) calc(20 * var(--u)) calc(10 * var(--u))
          calc(15 * var(--u)); font-size calc(15 * var(--u)); a 16u play triangle in front;
-         label verbatim:  Трейлер
+         href="#trailer"; label verbatim:  Трейлер
+         (both this and the booking button are dead anchors — this is a promo page,
+         there is nothing to link to)
 
 ── FIXED BOTTOM UI ──
 .release  fixed; bottom calc(34 * var(--u)); left calc(48 * var(--u));
@@ -403,11 +501,14 @@ Slides, verbatim:
                    ten stars, exactly one filled (#ffd000, rest rgba(255,255,255,.28), 22–34px)
                    Меньше поставить технически невозможно. Мы проверили.
     2  Кинопоиск   Кинопоиск спрятал рейтинг
-                   "7,4" behind a black censor bar: ::after, height .42em,
+                   "7,4" in a .censored wrapper: font-size clamp(30px, 3vw, 46px),
+                   colour rgba(255,255,255,.5), padding .08em .3em;
+                   the bar is .censored::after — left/right 0, top 50%, height .42em,
                    transform translateY(-50%) rotate(-1.2deg), background #0b1220
                    За ночь прилетели тысячи оценок
     3  Кинопоиск   1,9 паука из 10
-                   ten mask cells; mask-on.webp clipped over mask-off.webp with
+                   ten mask cells, each width clamp(26px, 2.5vw, 40px);
+                   mask-on.webp positioned absolutely over mask-off.webp and clipped:
                    clip-path: inset(0 calc((1 - var(--fill)) * 100%) 0 0);
                    fills: 1, .9, then eight zeros
                    Кинопоиск заменил звёзды на масках Человека-паука
@@ -489,9 +590,14 @@ transition opacity .45s, visibility .45s.
                 a 12×2px white tick at ::after; "%" at .42em, opacity .7, vertical-align super;
                 transition bottom .35s
 
-Progress is real: preload the sky, island, cloud, vdali, otsborov and the seven letters,
-count how many resolved, and let the displayed number chase the real one:
-    shown += (real - shown) * 0.12
+Progress is real: preload the sky, island, cloud, vdali, otsborov and the seven letters
+(twelve files — the rest arrive later on their own), count how many resolved, and let the
+displayed number chase the real one once per animation frame:
+    shown += (real - shown) * 0.12      // inside requestAnimationFrame, not a timer
+    percent = Math.min(100, Math.round(shown * 100))
+    pre.style.setProperty('--p', (percent / 100).toFixed(3))
+The number sits to the LEFT of the rail with `padding-right: 18px`, and its ::after tick
+(12×2px, white) touches the rail itself.
 Without the chase it jumps from 0 to 100 on a warm cache.
 When everything is in: set 100, wait 420 ms, add .is-done, and 700 ms later set
 display: none (if the opacity transition never ran, the curtain would hang over the scene).
@@ -509,16 +615,23 @@ gets a fully assembled screen.
     iTitle = seg(t, 0.9, 2.1)
     iIsle  = easeOutBack(seg(t, 1.05, 2.6))
     iWord  = seg(t, 1.9, 3.2)
-    hover  = Math.sin(t * 1.1) * 0.5                      // permanent island levitation
+    hover  = Math.sin(t * 1.1) * 0.5                      // island levitation, in vh
 
     clouds     left:  translate((30*(1-iCloud) - 16*p1)vw, (7*(1-iCloud) - 24*p1)vh)
                right: translate((-30*(1-iCloud) + 20*p1)vw, (-7*(1-iCloud) - 20*p1)vh)
                both:  scale(1.12 - 0.12 * iCloud)
-    letters    up = easeOutBack(seg(iTitle, i*0.07, i*0.07 + 0.62))
-               translateY((1-up) * 11 vh), rotate((1-up) * (i-3) * 5 deg),
-               scale(0.88 + 0.12*up), opacity = up * (fade from scroll)
-    island     translateY((1 - iIsle) * 85 vh + hover)
-    words      translateY((1 - easeOutBack(iWord)) * 5 vh), scale(0.9 + 0.1*…), opacity
+    letters    intro and scroll live in ONE transform string, added together —
+               the intro offset does not fade out, the scroll offset grows on top of it:
+               up = easeOutBack(seg(iTitle, i*0.07, i*0.07 + 0.62))
+               transform =
+                 translate( fly.x * p1 vw ,  (1-up)*11 + fly.y * p1  vh )
+                 rotate( (1-up)*(i-3)*5 + fly.rot * p1  deg )
+                 scale( 0.88 + 0.12*up )
+               opacity = up * (1 - clamp01((p1 - 0.6) / 0.3))
+               fly.x / fly.y / fly.rot are the vectors in "HERO ON SCROLL" below;
+               they are end points multiplied by p1, not velocities.
+    island     translateY((1 - iIsle) * 85 vh + hover vh)     // hover is in vh
+    words      translateY((1 - easeOutBack(iWord)) * 5 vh), scale(0.9 + 0.1*that), opacity = that
 
 Drive the clock from performance.now(), not from a frame counter — a backgrounded tab
 must still end up in the assembled state. Also run a 4.5 s safety interval that calls
@@ -563,7 +676,8 @@ Write the track transform only when the index changes. Writing it every frame fi
 the CSS transition and the slides tear in half.
 
 ── FINALE ──
-IntersectionObserver on the section, threshold 0.45, plays once, freezes on the last frame.
+IntersectionObserver on the section, threshold 0.45, plays once. The clip has no `loop`,
+so it stops on its own last frame and stays there — nothing else is needed.
 Three fallbacks, because some browsers block autoplay:
     1. autoplay in the markup — Chrome pauses a muted video off-screen and starts it
        when it scrolls in, so do not call pause() on load;
@@ -580,7 +694,11 @@ currentTime needs no permission, so the character always rolls away.
 Reels of digits 0…9 stacked vertically, `.odo__cell { flex: none; width: .62em }`,
 shift in em: translateY(-digit em). Quantise the value to steps of 50 ₽ — otherwise the
 transition restarts every frame and the digits stall. Blank the leading zeros by the index
-of the first significant digit. Group separator cell: width .26em.
+of the first significant digit (`opacity: 0` on the reel, the cell keeps its width).
+Group separator cell: width .26em, sits before the last three digits.
+The ₽ sign is a static span after the reels (`margin-left: .18em`), it never animates.
+Reel transition: `transform .45s cubic-bezier(.22, .61, .36, 1)`.
+Keep the accessible label in sync: `aria-label="<amount> рублей"` on the value.
 
 ── SCROLL RESTORATION ──
 history.scrollRestoration = 'manual' plus a second scrollTo(0,0) on load — Safari restores
@@ -597,8 +715,22 @@ TABLET, max-width 1100:
     .sky background-size: cover — 152% does not cover a portrait frame and the flat
     fill shows as hard bands top and bottom
     Raise small type with max(13px, calc(15 * var(--u))) etc.
-    Portrait only: stack the box-office facts in one centred column, strip 150vw,
-    move the couple below the heading, put its cloud on top of their legs.
+    Portrait only (`orientation: portrait`), with numbers:
+      .hero__stage transform: translateY(11vh) scale(1.04); origin 50% 44%
+      .about min-height 88vh
+      .about__hero--spider top 4vh; width calc(360 * var(--u))
+      .about__hero--grandparents top 46vh; right calc(10 * var(--u));
+        width calc(360 * var(--u)); z-index 1
+      .about__cloud--right top 58vh; right calc(-120 * var(--u));
+        width calc(620 * var(--u)); z-index 2   → lies over the couple's legs
+      .about__text width calc(600 * var(--u))
+      .boxoffice min-height 0; padding 10vh 24px 12vh; .bo__strip width 150vw, top 3vh
+      .bo__headline align-self centre; margin-left 0; width 56vw
+      every .bofact align-self centre; max-width calc(560 * var(--u)); margin 9vh 0 0
+      .bofact__icon width 26vw; .bofact b font-size 11vw; .bofact i max(16px, 2.4vw)
+      .cinslide b max(30px, 4.6vw); .cinslide i max(15px, 2.1vw); .cinlogo max(13px, 1.8vw)
+      .hero-sec min-height 0; padding 12vh calc(40 * var(--u)) 16vh
+      .finale__copy margin-top 20vh
 
 MOBILE, max-width 640:
     :root --u: calc(100vw / 480)
@@ -607,23 +739,47 @@ MOBILE, max-width 640:
     island in JS: scale × 1.6, offset +12vh, transform-origin 50% 26%
       — the character has to read large while the headline still spans the frame
     scene leaves faster: p1 over 0.85 * viewportH, p3 over 1.2 * viewportH
-    release: position absolute, top 11vh, centred, white, no plate — it scrolls away
-      with the first screen instead of staying fixed
+    release: switches from fixed to `position: absolute; top: 11vh; left: 50%;
+      transform: translateX(-50%)`. It is a direct child of body, so absolute positions it
+      against the initial containing block — i.e. 11vh from the top of the document, which
+      is exactly the first screen. White, 14px, no plate: it scrolls away with the hero
+      instead of following the viewport.
     budget: centred above the button, bottom 84px
     booking: centred, padding 13px 28px 15px, white-space nowrap
       (a fixed element with left: 50% and no right gets only half the frame to shrink into,
        and the label breaks in two)
-    about: one column, gap 9vh, padding 11vh 20px 18vh; figures position static with
-      order 1 / 2 / 3; each cloud absolute on top of its figure, z-index above it
+    about: one column, gap 9vh, padding 11vh 20px 18vh.
+      The figures go `position: static` and take order 1 / 2 / 3 (spider, text, couple).
+      The clouds stay `position: absolute` against .about and are placed by hand —
+      no wrapper is introduced, the DOM stays exactly as in §6:
+        .about__cloud--left   left -22vw; top 27vh; width 86vw
+        .about__cloud--right  right -18vw; bottom 6vh; width 88vw; z-index 2
+        .about__hero--grandparents  position: relative; z-index: 1
+      The right cloud therefore paints over the couple and cuts their legs off — that
+      is the intent: both figures stand on clouds, no feet visible.
     reviews: full width, tilts down to ±1°, gap 10vh
     box office: one centred column, strip 190vw, icons 38vw, numbers 62px
-    cinema: no hall at all. Render the three ratings as white cards in the style of the
-      reviews block, add a "Рейтинги" label above them, drop the sticky pin, and return
-      early from the cinema scroll handler. In a narrow frame the screen hole covers almost
-      the whole field, the sky shows through it and the seam reads as a layout bug.
+    cinema: no hall at all. In a narrow frame the screen hole covers almost the whole
+      field, the sky shows through it and the seam reads as a layout bug.
+      Markup: put `<p class="cinema-label section-label">Рейтинги</p>` inside .cinema-wrap
+      as its first child, `display: none` on desktop, `display: block` here — do not fake
+      the label with a ::before.
+      CSS: .cinema-wrap height auto, padding 4vh 16px 10vh; .cinema-pin position static,
+      height auto, overflow visible; .cinema-hall display none; .cinema-screen position
+      static, width/height auto, transform none, background none; .cinema-track flex
+      column, gap 14px, transform none; .cinslide becomes a white card — flex none,
+      height auto, align-items flex-start, text-align left, padding 22px 20px 20px,
+      border-radius 18px, background #fff, colour var(--ink),
+      box-shadow 0 14px 34px rgba(18,48,73,.16); stars and masks go dark:
+      .rate__i fill rgba(18,48,73,.16), .censored colour rgba(18,48,73,.35).
+      JS: return from the cinema scroll handler immediately when viewportW < 700, and
+      skip the screen-positioning function too — otherwise it writes inline left/top/
+      width/height and you end up fighting your own CSS with !important.
     hero section: one column, figure 58vw, text centred,
-      .hero-sec .review--cloud margin-top 78px
-      (the plain `.review--cloud` selector loses to `.review:nth-child(n) { margin: 0 }`)
+      .hero-sec .review--cloud margin-top 78px — write it with the section in the
+      selector: the mobile rules that reset the cascade of review cards
+      (`.review:nth-child(n) { margin: 0 }`, see the reviews block above) outrank a plain
+      `.review--cloud` and would zero this gap out
 
 LANDSCAPE PHONE, orientation landscape and max-height 500:
     .hero__stage transform: translateY(-7vh) scale(.5); bottom UI pinned to the edge
@@ -656,7 +812,9 @@ Open the page at 1440, 1024, 768 and 390 wide and confirm:
  6. No object covers copy to the point of illegibility.
  7. The fixed bottom labels stay readable over everything that passes beneath them.
  8. The console is clean.
- 9. Compare each section against https://kolobok-vdali-ot-sborov.vercel.app at the same
-    width and scroll position. Sizes, positions and timings must match, not merely resemble.
+ 9. Optional, if the machine has network and a browser: open
+    https://kolobok-vdali-ot-sborov.vercel.app side by side at the same width and scroll
+    position. Everything needed to match it is already written above in numbers — this
+    step is a sanity check, not a source of missing data.
 
-Then serve it over a Range-capable server and report the local URL.
+Then serve it over a threaded, Range-capable server and report the local URL.
