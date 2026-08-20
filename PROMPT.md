@@ -13,9 +13,16 @@ You need a coding agent with a shell and network access (Claude Code, Codex CLI,
 Cursor, Windsurf, Copilot agent mode …). A chat window with no terminal cannot
 fetch the assets and will not finish this task.
 
-1. Fetch every asset first — one command, nothing to type by hand:
+1. Get the assets. They already exist — never generate them.
 
-       BASE=https://storage.yandexcloud.net/german-gc-assets/kolobok
+   Either clone the kit:
+
+       git clone https://github.com/keizgraphics/kolobok-site-kit.git
+       cd kolobok-site-kit
+
+   Or, if you are building in a folder of your own, pull the files into it:
+
+       BASE=https://cdn.jsdelivr.net/gh/keizgraphics/kolobok-site-kit@main
        curl -fsS "$BASE/manifest.txt" -o manifest.txt
        while read -r f; do
          mkdir -p "$(dirname "$f")"
@@ -24,9 +31,9 @@ fetch the assets and will not finish this task.
        rm manifest.txt
        find assets fonts -type f | wc -l    # must print 27
 
-   Mirror, if that host is unreachable from your network — same paths, same files:
+   Mirror if that CDN is blocked on your network — same paths, same files:
 
-       BASE=https://kolobok-vdali-ot-sborov.vercel.app
+       BASE=https://raw.githubusercontent.com/keizgraphics/kolobok-site-kit/main
 
 2. Write three files: `index.html`, `styles.css`, `hero.js`. No frameworks, no build step,
    no npm. All motion runs in one requestAnimationFrame loop.
@@ -64,10 +71,11 @@ ResizeObserver on document.body — images arrive after load and shift the layou
 ═══════════════════════════════════════════════════════════════════════════
 3. ASSETS — download, do not generate
 ═══════════════════════════════════════════════════════════════════════════
-BASE = https://storage.yandexcloud.net/german-gc-assets/kolobok
-MIRROR = https://kolobok-vdali-ot-sborov.vercel.app
+Repo    https://github.com/keizgraphics/kolobok-site-kit
+CDN     https://cdn.jsdelivr.net/gh/keizgraphics/kolobok-site-kit@main
+Mirror  https://raw.githubusercontent.com/keizgraphics/kolobok-site-kit/main
 
-Both hosts serve identical files at identical paths. `$BASE/manifest.txt` lists all 27.
+`manifest.txt` in the repo root lists all 27 paths.
 Save each file to the same relative path shown below.
 
     assets/sky.jpg                      2880×1608  sky background, clean centre
