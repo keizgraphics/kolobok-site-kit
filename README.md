@@ -1,34 +1,56 @@
-# КОЛОБОК — вдали от сборов / site kit
+# КОЛОБОК — вдали от сборов
 
-Assets and a single build prompt for the promo page of a fictional film.
+Промо-страница выдуманного фильма: ассеты и один промпт, который её собирает.
 
-**Live reference:** https://kolobok-vdali-ot-sborov.vercel.app
+**Живой сайт:** https://kolobok-vdali-ot-sborov.vercel.app
 
-## How to use
+---
 
-1. Clone this repo (or download the ZIP):
+## Как собрать
 
-   ```bash
-   git clone https://github.com/keizgraphics/kolobok-site-kit.git
-   cd kolobok-site-kit
-   ```
+Нужен ИИ-агент с доступом к терминалу — Claude Code, Codex CLI, Cursor, Windsurf.
+В обычном чате без терминала не получится: ассеты надо скачать на диск, а видео
+требует сервера с поддержкой Range.
 
-2. Open it with a coding agent that has a shell — Claude Code, Codex CLI, Cursor.
-3. Paste the contents of `PROMPT.md` as your task.
-4. The agent writes `index.html`, `styles.css`, `hero.js` around the assets that are
-   already here, then serves the page locally.
-
-A chat window without a terminal will not finish this: the page needs local files
-and a Range-capable static server for the video.
-
-## What's inside
+Открой агента в пустой папке и вставь одну строку:
 
 ```
-assets/          26 files — sky, island, letters, characters, icons, video, poster
-fonts/           the display typeface
-manifest.txt     flat list of every asset path
-PROMPT.md        the full build spec: tokens, geometry, motion, responsive, acceptance
+Склонируй https://github.com/keizgraphics/kolobok-site-kit и собери сайт строго по PROMPT.md в корне репозитория.
 ```
 
-Nothing here runs code. There is no build step, no npm, no dependencies —
-the finished site is three plain files plus these assets.
+Дальше он всё сделает сам: заберёт 27 файлов ассетов, напишет `index.html`,
+`styles.css` и `hero.js` по спецификации и поднимет страницу локально.
+
+---
+
+## Что внутри
+
+```
+assets/        26 файлов — небо, остров, буквы заголовка, персонажи,
+               иконки, кинолента, зал, видео финала, постер
+fonts/         дисплейная гарнитура
+manifest.txt   плоский список всех путей
+PROMPT.md      сама спецификация: токены, геометрия, движение, адаптив, приёмка
+```
+
+В спецификации проставлены реальные числа: координаты каждой буквы, векторы
+разлёта, кривые появления, тайминги интро до сотых, фазы кинозала, формула
+одометра. Не «сделай красиво», а точные значения — поэтому сборка повторяет
+оригинал, а не напоминает его.
+
+Здесь нет ни одного исполняемого файла. Готовый сайт — три обычных файла плюс
+эти ассеты: ни сборщика, ни npm, ни зависимостей.
+
+---
+
+## Что можно забрать себе
+
+Отдельные приёмы работают сами по себе, без всего остального:
+
+- разлёт объёмных букв по скроллу с индивидуальным вектором у каждой
+- прелоадер с честным процентом загрузки и интро, которое стартует после него
+- одометр-счётчик барабанами
+- размытие снизу для читаемости, без единого тёмного пикселя
+- пин-секция с наездом внутрь картинки и слайдами в вырезанном окне
+- растворение стыка между блоками через многоступенчатую маску
+- перемотка видео скроллом, когда браузер запретил автоплей
